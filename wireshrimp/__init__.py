@@ -20,3 +20,4 @@ from . import (
 )
 from .network import Network
 from .sniffer import InterfaceSniffer
+from .sifter import Sifter

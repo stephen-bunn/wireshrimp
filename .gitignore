@@ -89,4 +89,4 @@ ENV/
 .ropeproject
 
 # Custom project settings
-main.py
+./main.py
