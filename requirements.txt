@@ -1,6 +1,4 @@
-git+https://github.com/invernizzi/scapy-http.git
-git+https://github.com/Simsys/qhexedit2.git
 scapy-python3>=0.20
 netifaces>=0.10.5
-blinker>=1.4
 pyqt5>=5.8.2
+python-pyqt5-hexview>=0.4.3

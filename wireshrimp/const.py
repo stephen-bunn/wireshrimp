@@ -26,8 +26,8 @@ class _const(object):
     """ Module constants class.
     """
 
-    _module_name = 'wireshrimp'
-    _version = (0, 0, 0,)
+    _module_name = 'Wireshrimp'
+    _version = {'major': 0, 'minor': 0, 'patch': 0}
     _authors = (
         'Stephen Bunn <stephen@bunn.io>',
     )
@@ -107,11 +107,18 @@ class _const(object):
         return self._module_name
 
     @property
+    def icon(self) -> str:
+        """ The icon path of the GUI.
+        """
+
+        return os.path.join(self.base_dir, 'icon.png')
+
+    @property
     def version(self) -> tuple:
         """ The version of the module.
         """
 
-        return self._version
+        return '{major}.{minor}.{patch}'.format(**self._version)
 
     @property
     def base_dir(self) -> str:
