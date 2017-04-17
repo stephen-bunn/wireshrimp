@@ -30,41 +30,46 @@ class WireshrimpMainWindow(QtWidgets.QMainWindow):
         self.setWindowTitle(self.title)
         self.setWindowIcon(QtGui.QIcon(self.icon))
         self.resize(self.width, self.height)
+        self.status_bar = QtWidgets.QStatusBar()
+        self.setStatusBar(self.status_bar)
+        self.status_bar.showMessage((
+            '{const.module_name} v{const.version} by {const.author}'
+        ).format(const=const))
 
         exit_action = QtWidgets.QAction(self.style().standardIcon(
             QtWidgets.QStyle.SP_DialogCloseButton
-        ), 'Exit {self.title}'.format(self=self), self)
+        ), 'Exit {self.title}\nCtrl+Q'.format(self=self), self)
         exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(self.quit_application)
 
         self.sniff_action = QtWidgets.QAction(self.style().standardIcon(
             QtWidgets.QStyle.SP_MediaPlay
-        ), 'Toggle Sniffing', self)
+        ), 'Toggle Sniffing\nCtrl+Space', self)
         self.sniff_action.setShortcut('Ctrl+Space')
         self.sniff_action.triggered.connect(self.toggle_sniff)
 
         clear_action = QtWidgets.QAction(self.style().standardIcon(
             QtWidgets.QStyle.SP_DialogDiscardButton
-        ), 'Clear Packets', self)
+        ), 'Clear Packets\nCtrl+W', self)
         clear_action.setShortcut('Ctrl+W')
         clear_action.triggered.connect(self.clear_packets)
 
         digest_action = QtWidgets.QAction(self.style().standardIcon(
             QtWidgets.QStyle.SP_FileDialogContentsView
-        ), 'Inspect Packet', self)
+        ), 'Inspect Packet\nCtrl+I', self)
         digest_action.setShortcut('Ctrl+I')
         digest_action.triggered.connect(self.digest_packet)
 
         write_action = QtWidgets.QAction(self.style().standardIcon(
             QtWidgets.QStyle.SP_DialogSaveButton
-        ), 'Save selected to PCAP', self)
+        ), 'Save selected to PCAP\nCtrl+S', self)
         write_action.setShortcut('Ctrl+S')
         write_action.triggered.connect(self.save_packets)
 
         self.auto_select_action = QtWidgets.QAction(self.style().standardIcon(
             QtWidgets.QStyle.SP_DialogNoButton
-        ), 'Auto select last packet', self, checkable=True
-        )
+        ), 'Auto select last packet\nCtrl+G', self, checkable=True)
+        self.auto_select_action.setShortcut('Ctrl+G')
         self.auto_select_action.triggered.connect(self.toggle_auto_select)
 
         self.toolbar = self.addToolBar(self.title)

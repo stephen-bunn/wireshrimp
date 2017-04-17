@@ -27,7 +27,7 @@ class _const(object):
     """
 
     _module_name = 'Wireshrimp'
-    _version = {'major': 0, 'minor': 0, 'patch': 0}
+    _version = {'major': 1, 'minor': 0, 'patch': 0}
     _authors = (
         'Stephen Bunn <stephen@bunn.io>',
     )
@@ -119,6 +119,13 @@ class _const(object):
         """
 
         return '{major}.{minor}.{patch}'.format(**self._version)
+
+    @property
+    def author(self) -> str:
+        """ The primary author of the module.
+        """
+
+        return self._authors[0]
 
     @property
     def base_dir(self) -> str:

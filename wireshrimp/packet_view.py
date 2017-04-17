@@ -88,7 +88,7 @@ class PacketListWidget(QtWidgets.QWidget):
                 clause_evals.append(False)
         return all(clause_evals)
 
-    def apply_filter(self) -> None:
+    def refresh_filter(self) -> None:
         for packet_item in range(self._packet_list.count()):
             packet_item = self._packet_list.item(packet_item)
             packet_item.setHidden(not self._filter_packet(
@@ -107,7 +107,7 @@ class PacketListWidget(QtWidgets.QWidget):
             self._packet_list.clearSelection()
             self._packet_list.setCurrentItem(packet_item)
             self._packet_list.scrollToBottom()
-        self.apply_filter()
+        self.refresh_filter()
 
     def clear_packets(self) -> None:
         for packet in self._packet_list.selectedItems():
@@ -125,7 +125,7 @@ class PacketListWidget(QtWidgets.QWidget):
             self._filter_clauses = None
         else:
             self._filter_clauses = clauses
-        self.apply_filter()
+        self.refresh_filter()
 
 
 class PacketInspectorWidget(QtWidgets.QWidget):
@@ -301,7 +301,8 @@ class PacketViewWidget(QtWidgets.QWidget):
                 ), os.getcwd()
             )
             if save_to:
-                for packet in selected_packets:
+                for packet_item in selected_packets:
+                    packet = packet_item.data(QtCore.Qt.UserRole)
                     scapy.wrpcap(save_to, packet, append=True)
         else:
             QtWidgets.QMessageBox.information(
