@@ -202,7 +202,7 @@ class PacketFilterWidget(QtWidgets.QLineEdit):
 
     def _init_ui(self) -> None:
         self.textChanged.connect(self.validate_text)
-        self.setStyleSheet('font-family: Courier;')
+        self.setStyleSheet('font: bold; font-family: Courier;')
 
     def _build_clauses(self, text: str) -> list:
         filter_clauses = []
