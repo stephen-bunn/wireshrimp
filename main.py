@@ -14,12 +14,13 @@ main.py
 .. moduleauthor:: Stephen Bunn <r>
 """
 import sys
+import logging
 
 import wireshrimp
 
 from PyQt5 import QtWidgets
 
-
+logging.getLogger('scapy.runtime').setLevel(logging.ERROR)
 app = QtWidgets.QApplication(sys.argv)
 window = wireshrimp.app.WireshrimpMainWindow()
 window.show()

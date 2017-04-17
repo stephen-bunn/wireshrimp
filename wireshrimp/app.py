@@ -21,7 +21,7 @@ class WireshrimpMainWindow(QtWidgets.QMainWindow):
 
         (self.width, self.height) = (width, height)
         self.icon = const.icon
-        self.title = '{const.module_name} v{const.version}'.format(const=const)
+        self.title = const.module_name
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -33,7 +33,7 @@ class WireshrimpMainWindow(QtWidgets.QMainWindow):
 
         exit_action = QtWidgets.QAction(self.style().standardIcon(
             QtWidgets.QStyle.SP_DialogCloseButton
-        ), 'Exit', self)
+        ), 'Exit {self.title}'.format(self=self), self)
         exit_action.setShortcut('Ctrl+Q')
         exit_action.triggered.connect(self.quit_application)
 
@@ -61,16 +61,27 @@ class WireshrimpMainWindow(QtWidgets.QMainWindow):
         write_action.setShortcut('Ctrl+S')
         write_action.triggered.connect(self.save_packets)
 
+        self.auto_select_action = QtWidgets.QAction(self.style().standardIcon(
+            QtWidgets.QStyle.SP_DialogNoButton
+        ), 'Auto select last packet', self, checkable=True
+        )
+        self.auto_select_action.triggered.connect(self.toggle_auto_select)
+
         self.toolbar = self.addToolBar(self.title)
         self.toolbar.addAction(exit_action)
         self.toolbar.addAction(self.sniff_action)
         self.toolbar.addAction(clear_action)
         self.toolbar.addAction(digest_action)
         self.toolbar.addAction(write_action)
+        self.toolbar.addSeparator()
+        self.toolbar.addAction(self.auto_select_action)
 
         self.tabs = QtWidgets.QTabWidget()
         for interface in netifaces.interfaces():
-            self.tabs.addTab(PacketViewWidget(interface), interface)
+            self.tabs.addTab(
+                PacketViewWidget(interface, parent=self),
+                interface
+            )
         self.tabs.currentChanged.connect(self.tab_changed)
         self.setCentralWidget(self.tabs)
 
@@ -78,8 +89,8 @@ class WireshrimpMainWindow(QtWidgets.QMainWindow):
         if not os.geteuid() == 0:
             QtWidgets.QMessageBox.information(
                 self, 'Not Root', (
-                    '{self.title} requires that it be run as a root user for '
-                    'packet sniffing'
+                    '{self.title} requires that it be run as a root '
+                    'user for packet sniffing'
                 ).format(self=self)
             )
             sys.exit(1)
@@ -112,3 +123,13 @@ class WireshrimpMainWindow(QtWidgets.QMainWindow):
 
     def save_packets(self):
         self.tabs.currentWidget().save_packets()
+
+    def toggle_auto_select(self):
+        desired_icon = (
+            QtWidgets.QStyle.SP_DialogYesButton
+            if self.auto_select_action.isChecked() else
+            QtWidgets.QStyle.SP_DialogNoButton
+        )
+        self.auto_select_action.setIcon(
+            self.style().standardIcon(desired_icon)
+        )

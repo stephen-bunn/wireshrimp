@@ -17,9 +17,10 @@ class PacketSnifferThread(QtCore.QThread):
     on_end    = QtCore.pyqtSignal(tuple)
     on_packet = QtCore.pyqtSignal(object)
 
-    def __init__(self, interface: str, parent: object=None):
+    def __init__(self, interface: str, filter_: str=None, parent: object=None):
         QtCore.QThread.__init__(self, parent)
         self._interface = interface
+        self._filter = filter_
         self.daemon = True
         self._sniffed = 0
         self._stopped = False
@@ -48,12 +49,13 @@ class PacketSnifferThread(QtCore.QThread):
 
 
 class PacketListWidget(QtWidgets.QWidget):
-    on_selected = QtCore.pyqtSignal(tuple)
+    on_selected = QtCore.pyqtSignal(list)
 
-    def __init__(self, scroll_to_bottom=False, parent=None):
+    def __init__(self, parent=None):
         super().__init__()
         self._packets = []
-        self._scroll_to_bottom = scroll_to_bottom
+        self._filter_clauses = None
+        self.parent = parent
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -68,45 +70,69 @@ class PacketListWidget(QtWidgets.QWidget):
         self.setLayout(layout)
         self.setStyleSheet('font: bold; font-family: Courier;')
 
-    def current_packets(self) -> int:
-        return [
-            self._packets[index.row()]
-            for index in self._packet_list.selectedIndexes()
-        ]
+    def _filter_packet(self, packet: scapy.Packet) -> bool:
+        if not self._filter_clauses:
+            return True
+        clause_evals = []
+        for ((layer, attribute), value) in self._filter_clauses:
+            try:
+                layer_reference = getattr(scapy, layer)
+                if packet.haslayer(layer_reference):
+                    packet_layer = packet[layer_reference]
+                    clause_evals.append(
+                        str(getattr(packet_layer, attribute)) == value
+                    )
+                else:
+                    clause_evals.append(False)
+            except AttributeError as exc:
+                clause_evals.append(False)
+        return all(clause_evals)
+
+    def apply_filter(self) -> None:
+        for packet_item in range(self._packet_list.count()):
+            packet_item = self._packet_list.item(packet_item)
+            packet_item.setHidden(not self._filter_packet(
+                packet_item.data(QtCore.Qt.UserRole)
+            ))
+
+    def current_items(self) -> list:
+        return self._packet_list.selectedItems()
 
     def add_packet(self, packet: scapy.Packet) -> None:
-        self._packets.append(packet)
         packet_item = QtWidgets.QListWidgetItem(packet.summary())
+        packet_item.setData(QtCore.Qt.UserRole, packet)
         self._packet_list.addItem(packet_item)
-        self._packet_list.clearSelection()
-        self._packet_list.setCurrentItem(packet_item)
-        if self._scroll_to_bottom:
+        if self._filter_packet(packet) and \
+                self.parent.parent.auto_select_action.isChecked():
+            self._packet_list.clearSelection()
+            self._packet_list.setCurrentItem(packet_item)
             self._packet_list.scrollToBottom()
+        self.apply_filter()
 
     def clear_packets(self) -> None:
-        self._packets = []
-        self._packet_list.clear()
+        for packet in self._packet_list.selectedItems():
+            packet_index = self._packet_list.row(packet)
+            self._packet_list.takeItem(packet_index)
 
     def packet_selected(
         self,
         selected: QtCore.QItemSelection, deselected: QtCore.QItemSelection
     ) -> None:
-        try:
-            if len(selected.indexes()) <= 1:
-                packet_index = selected.indexes()[0].row()
-                self.on_selected.emit((
-                    packet_index, self._packets[packet_index]
-                ))
-            else:
-                self.on_selected.emit((None, None))
-        except IndexError as exc:
-            pass
+        self.on_selected.emit(self._packet_list.selectedItems())
+
+    def filter_changed(self, clauses: list) -> None:
+        if len(clauses) <= 0:
+            self._filter_clauses = None
+        else:
+            self._filter_clauses = clauses
+        self.apply_filter()
 
 
 class PacketInspectorWidget(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
         super().__init__()
+        self.parent = parent
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -128,8 +154,9 @@ class PacketInspectorWidget(QtWidgets.QWidget):
     def clear_packets(self) -> None:
         self._inspect_tree.clear()
 
-    def packet_selected(self, index: int, packet: scapy.Packet) -> None:
-        if packet:
+    def packet_selected(self, packet_items: list) -> None:
+        if len(packet_items) == 1:
+            packet = packet_items[0].data(QtCore.Qt.UserRole)
             self.setEnabled(True)
             self._inspect_tree.clear()
             for layer in self._expand_packet_layers(packet):
@@ -165,24 +192,55 @@ class PacketInspectorWidget(QtWidgets.QWidget):
             self.setEnabled(False)
 
 
+class PacketFilterWidget(QtWidgets.QLineEdit):
+    on_valid = QtCore.pyqtSignal(list)
+
+    def __init__(self, parent=None):
+        super().__init__()
+        self.parent = parent
+        self._init_ui()
+
+    def _init_ui(self) -> None:
+        self.textChanged.connect(self.validate_text)
+        self.setStyleSheet('font-family: Courier;')
+
+    def _build_clauses(self, text: str) -> list:
+        filter_clauses = []
+        for clause in text.split('&'):
+            clause = clause.strip()
+            if len(clause) > 0:
+                if len(clause.split('=')) >= 2:
+                    (key, *_, value) = clause.split('=')
+                    if len(key.split('.')) == 2 and len(value) > 0:
+                        (layer, attribute) = key.split('.')
+                        filter_clauses.append((
+                            (layer.strip(), attribute.strip()),
+                            value.strip()
+                        ))
+        return filter_clauses
+
+    def validate_text(self, text: str) -> None:
+        self.on_valid.emit(self._build_clauses(text))
+
+
 class PacketViewWidget(QtWidgets.QWidget):
     on_start  = QtCore.pyqtSignal(str)
     on_end    = QtCore.pyqtSignal(tuple)
     on_packet = QtCore.pyqtSignal(object)
 
-    def __init__(self, interface: str):
+    def __init__(self, interface: str, parent=None):
         super().__init__()
         self._interface = interface
+        self.parent = parent
         self._packets = []
         self._init_ui()
 
     def _init_ui(self) -> None:
-        self._packet_list = PacketListWidget(
-            scroll_to_bottom=True, parent=self
-        )
+        self._packet_list = PacketListWidget(parent=self)
         self._packet_list.on_selected.connect(self.packet_selected)
-
         self._packet_inspector = PacketInspectorWidget(parent=self)
+        self._packet_filter = PacketFilterWidget(parent=self)
+        self._packet_filter.on_valid.connect(self._packet_list.filter_changed)
 
         self._view_splitter = QtWidgets.QSplitter(self)
         self._view_splitter.addWidget(self._packet_list)
@@ -190,6 +248,7 @@ class PacketViewWidget(QtWidgets.QWidget):
         self._view_splitter.setSizes([700, 300])
 
         layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(self._packet_filter)
         layout.addWidget(self._view_splitter)
         self.setLayout(layout)
 
@@ -201,7 +260,9 @@ class PacketViewWidget(QtWidgets.QWidget):
     def toggle_sniffer(self) -> None:
         if not hasattr(self, '_sniffer_thread') or \
                 self._sniffer_thread.is_stopped():
-            self._sniffer_thread = PacketSnifferThread(self._interface)
+            self._sniffer_thread = PacketSnifferThread(
+                self._interface, filter_=self._packet_filter.text()
+            )
             self._sniffer_thread.on_start.connect(self.on_start.emit)
             self._sniffer_thread.on_end.connect(self.on_end.emit)
             self._sniffer_thread.on_packet.connect(self.packet_sniffed)
@@ -214,18 +275,25 @@ class PacketViewWidget(QtWidgets.QWidget):
         self._packet_inspector.clear_packets()
 
     def digest_packet(self) -> None:
-        selected_packets = self._packet_list.current_packets()
+        selected_packets = self._packet_list.current_items()
         if len(selected_packets) == 1:
-            digest_widget = PacketDigestDialog(selected_packets[0])
+            digest_widget = PacketDigestDialog(
+                selected_packets[0].data(QtCore.Qt.UserRole)
+            )
             digest_widget.exec_()
-        else:
+        elif len(selected_packets) > 1:
             QtWidgets.QMessageBox.information(
                 self, 'Inspect Error',
                 'Only one packet can be inspected at a time'
             )
+        else:
+            QtWidgets.QMessageBox.information(
+                self, 'Inspect Error',
+                'No packet is selected for inspection'
+            )
 
     def save_packets(self) -> None:
-        selected_packets = self._packet_list.current_packets()
+        selected_packets = self._packet_list.current_items()
         if len(selected_packets) > 0:
             (save_to, save_type) = QtWidgets.QFileDialog.getSaveFileName(
                 self, 'Saving {count} packets'.format(
@@ -245,5 +313,5 @@ class PacketViewWidget(QtWidgets.QWidget):
         self.on_packet.emit(packet)
         self._packet_list.add_packet(packet)
 
-    def packet_selected(self, *args: tuple):
-        self._packet_inspector.packet_selected(*args[0])
+    def packet_selected(self, packet_items: list):
+        self._packet_inspector.packet_selected(packet_items)
