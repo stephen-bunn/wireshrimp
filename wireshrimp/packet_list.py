@@ -35,15 +35,29 @@ class PacketListWidget(QtWidgets.QWidget):
             return True
         clause_evals = []
         for ((layer, attribute), value) in self._filter_clauses:
+            truthy_clause = True
             try:
+                if layer[0] == '!':
+                    truthy_clause = False
+                    layer = layer[1:]
                 layer_reference = getattr(scapy, layer)
-                if packet.haslayer(layer_reference):
-                    packet_layer = packet[layer_reference]
-                    clause_evals.append(
-                        str(getattr(packet_layer, attribute)) == value
-                    )
+                if attribute == 'exists':
+                    clause_evals.append(str(int(
+                        packet.haslayer(layer_reference)
+                    )) == value)
                 else:
-                    clause_evals.append(False)
+                    if packet.haslayer(layer_reference):
+                        packet_layer = packet[layer_reference]
+                        packet_attribute = str(
+                            getattr(packet_layer, attribute)
+                        )
+                        clause_evals.append(
+                            (packet_attribute == value)
+                            if truthy_clause else
+                            (packet_attribute != value)
+                        )
+                    else:
+                        clause_evals.append(False)
             except AttributeError as exc:
                 clause_evals.append(False)
         return all(clause_evals)
